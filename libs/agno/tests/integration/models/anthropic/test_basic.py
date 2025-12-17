@@ -267,3 +267,62 @@ async def test_acount_tokens_with_tools(claude_model):
     assert isinstance(async_tokens, int)
     assert async_tokens == sync_tokens
     assert async_tokens > claude_model.count_tokens(messages), "Token count with tools should be higher"
+
+
+def test_count_tokens_with_thinking():
+    """Test that count_tokens works with thinking enabled and thinking blocks in history.
+
+    This tests the fix for the bug where count_tokens would fail when:
+    1. The model has thinking enabled
+    2. The message history contains thinking blocks with signatures
+
+    The fix passes self.thinking to the count_tokens API call so the API
+    can validate thinking block signatures.
+    """
+    # Create a model with thinking enabled (requires a thinking-capable model)
+    thinking_model = Claude(
+        id="claude-sonnet-4-5-20250929",
+        thinking={"type": "enabled", "budget_tokens": 1024},
+        max_tokens=2048,
+    )
+
+    # First, make an agent call to generate real thinking blocks with valid signatures
+    agent = Agent(model=thinking_model, telemetry=False)
+    response = agent.run("What is 2+2? Think step by step.")
+
+    # Verify we got thinking content
+    assert response.messages is not None
+    assistant_msg = next((m for m in response.messages if m.role == "assistant"), None)
+    assert assistant_msg is not None
+    assert assistant_msg.reasoning_content is not None, "Expected thinking content in response"
+
+    # Now test that count_tokens works with these messages containing thinking blocks
+    # This would fail before the fix because thinking config wasn't passed to the API
+    tokens = thinking_model.count_tokens(response.messages)
+
+    assert isinstance(tokens, int)
+    assert tokens > 0
+
+
+@pytest.mark.asyncio
+async def test_acount_tokens_with_thinking():
+    """Test that acount_tokens works with thinking enabled and thinking blocks in history."""
+    thinking_model = Claude(
+        id="claude-sonnet-4-5-20250929",
+        thinking={"type": "enabled", "budget_tokens": 1024},
+        max_tokens=2048,
+    )
+
+    agent = Agent(model=thinking_model, telemetry=False)
+    response = await agent.arun("What is 2+2? Think step by step.")
+
+    assert response.messages is not None
+    assistant_msg = next((m for m in response.messages if m.role == "assistant"), None)
+    assert assistant_msg is not None
+    assert assistant_msg.reasoning_content is not None, "Expected thinking content in response"
+
+    # Test async count_tokens with thinking blocks
+    tokens = await thinking_model.acount_tokens(response.messages)
+
+    assert isinstance(tokens, int)
+    assert tokens > 0
