@@ -418,6 +418,9 @@ class Claude(Model):
             kwargs["system"] = system_prompt
         if anthropic_tools:
             kwargs["tools"] = anthropic_tools
+        # Include thinking config so API can validate thinking blocks in message history
+        if self.thinking:
+            kwargs["thinking"] = self.thinking
 
         response = self.get_client().messages.count_tokens(**kwargs)
         return response.input_tokens + count_schema_tokens(response_format, self.id)
@@ -439,6 +442,9 @@ class Claude(Model):
             kwargs["system"] = system_prompt
         if anthropic_tools:
             kwargs["tools"] = anthropic_tools
+        # Include thinking config so API can validate thinking blocks in message history
+        if self.thinking:
+            kwargs["thinking"] = self.thinking
 
         response = await self.get_async_client().messages.count_tokens(**kwargs)
         return response.input_tokens + count_schema_tokens(response_format, self.id)
